@@ -1,0 +1,1 @@
+int bsdiff(int argc,char *argv[]);
