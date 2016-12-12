@@ -58,7 +58,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        new MainSoHotfix(MainActivity.this).hotfix(new SoHotfixCallback() {
+                        MainSoHotfix.getInstance().hotfix(new SoHotfixCallback() {
 
                             @Override
                             public void onHotfixCallback(int errorCode) {

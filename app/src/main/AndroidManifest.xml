@@ -18,6 +18,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <receiver android:name=".RestartBroadcastReceiver">
+            <intent-filter>
+                <action android:name="cn.mutils.app.patch.demo.intent.action.RESTART"/>
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

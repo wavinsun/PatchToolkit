@@ -14,18 +14,32 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class SoHotfix {
 
-    private SoHotfixContext mContext;
-    private SoHotfixFileMgr mFileMgr;
-    private SoHotFixConf mConf;
-    private String mPublicKey;
-    private int mRestartDelaySec = 30;
-    private boolean mRestarted;
+    private SoHotfixContext mContext; // 上下文
+    private SoHotfixFileMgr mFileMgr; // 文件管理
+    private SoHotFixConf mConf; // 配置
+    private String mPublicKey; // 公钥
+    private int mKillDelaySec = 30; // 杀应用延时
+    private boolean mKillAppOnHotfixOK = false; // 热修复成功时开始杀进程
+    private volatile boolean mHotfixOK; // 是否热修复成功
+    private boolean mKillAppStarted; // 杀进程线程是否启动
 
     private List<String> mLibraries = new CopyOnWriteArrayList<String>();
 
     public SoHotfix(Context context) {
         mContext = new SoHotfixContext(context);
         mFileMgr = new SoHotfixFileMgr(mContext);
+    }
+
+    public boolean isHotfixOK() {
+        return mHotfixOK;
+    }
+
+    public boolean isKillAppOnHotfixOK() {
+        return mKillAppOnHotfixOK;
+    }
+
+    public void setKillAppOnHotfixOK(boolean killAppOnHotfixOK) {
+        mKillAppOnHotfixOK = killAppOnHotfixOK;
     }
 
     public String getPublicKey() {
@@ -36,12 +50,12 @@ public class SoHotfix {
         mPublicKey = publicKey;
     }
 
-    public int getRestartDelaySec() {
-        return mRestartDelaySec;
+    public int getKillDelaySec() {
+        return mKillDelaySec;
     }
 
-    public void setRestartDelaySec(int restartDelaySec) {
-        mRestartDelaySec = restartDelaySec;
+    public void setKillDelaySec(int restartDelaySec) {
+        mKillDelaySec = restartDelaySec;
     }
 
     private synchronized void tryToLoadConf() {
@@ -59,7 +73,7 @@ public class SoHotfix {
         }
     }
 
-    public SoHotfixContext getContext() {
+    public SoHotfixContext getSoContext() {
         return mContext;
     }
 
@@ -87,18 +101,18 @@ public class SoHotfix {
             }
             return;
         }
-        if (mConf.isTransaction()) {
+        if (mConf.isTransaction()) { // 上一次加载so崩溃
             for (String libName : mLibraries) {
                 System.loadLibrary(libName);
             }
             mConf.onLoadError();
             return;
         }
-        mConf.setTransaction(true);
+        mConf.setTransaction(true); // 准备加载，设置全局标识
         if (loadLibraries(soVersion)) {
-            mConf.setTransaction(false);
+            mConf.setTransaction(false); // 加载成功，重置全局标识
             mConf.setSuccessVersion(soVersion);
-        } else {
+        } else { // 加载出错
             mConf.onLoadError();
         }
     }
@@ -130,6 +144,10 @@ public class SoHotfix {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new RuntimeException("You can not call on main thread");
         }
+        if (mHotfixOK) {
+            callback.onHotfixCallback(SoHotfixCallback.ERROR_RESTART_APP);
+            return;
+        }
         checkLoadConf();
         if (isInvalidVersionForHotfix(version)) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_UNKNOWN);
@@ -157,9 +175,12 @@ public class SoHotfix {
             saveHotfixErrorVersion(version);
             return;
         }
+        mHotfixOK = true;
         callback.onHotfixCallback(SoHotfixCallback.ERROR_OK);
         mConf.setVersion(version);
-        restartApp();
+        if (mKillAppOnHotfixOK) {
+            killApp();
+        }
     }
 
     private boolean isInvalidVersionForHotfix(int version) {
@@ -178,12 +199,20 @@ public class SoHotfix {
         }
     }
 
-    private synchronized void restartApp() {
-        if (mRestarted) {
+    private void killApp() {
+        if (mKillAppStarted) {
             return;
         }
-        mRestarted = true;
-        new RestartAppThread(mContext.getContext(), mRestartDelaySec).start();
+        mKillAppStarted = true;
+        new KillAppThread(this, mKillDelaySec).start();
+    }
+
+    protected boolean onInterceptKillApp() {
+        return false;
+    }
+
+    public boolean isAppWorking() {
+        return false;
     }
 
 }

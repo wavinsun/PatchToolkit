@@ -11,6 +11,7 @@ public interface SoHotfixCallback {
     public static final int ERROR_PATCH = 2; // 增量打包合并so失败
     public static final int ERROR_UNZIP = 3; //  解压压缩包失败
     public static final int ERROR_CHECK_MD5 = 4; // 校验MD5
+    public static final int ERROR_RESTART_APP = 5; // 正在重启应用
 
     public void onHotfixCallback(int errorCode);
 

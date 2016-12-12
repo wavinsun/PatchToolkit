@@ -16,6 +16,7 @@ public class SoHotfixContext {
     private final String mHotfixRoot; // 热更新so根路径
     private final String mPackageName; // 包名
     private String mPackageVersion; // 版本
+    private int mPackageVersionCode; // 版本名称
 
     public SoHotfixContext(Context context) {
         mContext = context;
@@ -25,10 +26,11 @@ public class SoHotfixContext {
             PackageManager pm = mContext.getPackageManager();
             PackageInfo info = pm.getPackageInfo(mPackageName, 0);
             mPackageVersion = info.versionName;
+            mPackageVersionCode = info.versionCode;
         } catch (Exception e) {
             e.printStackTrace();
         }
-        mHotfixRoot = "/data/data/" + mPackageName + "/" + LIB_HOTFIX + "/" + mPackageVersion;
+        mHotfixRoot = "/data/data/" + mPackageName + "/" + LIB_HOTFIX + "/" + mPackageVersion + "_" + mPackageVersionCode;
     }
 
     public Context getContext() {
@@ -50,5 +52,10 @@ public class SoHotfixContext {
     public String getPackageVersion() {
         return mPackageVersion;
     }
+
+    public int getPackageVersionCode() {
+        return mPackageVersionCode;
+    }
+
 
 }
