@@ -46,4 +46,22 @@ public class FileUtil {
         }
     }
 
+    public static boolean deleteFile(File file) {
+        if (file == null) {
+            return false;
+        }
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    deleteFile(f);
+                }
+            }
+        }
+        if (file.exists()) {
+            return file.delete();
+        }
+        return false;
+    }
+
 }

@@ -12,7 +12,9 @@ import java.util.Iterator;
 /**
  * Created by wenhua.ywh on 2016/12/9.
  */
-public class SoHotfixFileMgr {
+class SoHotfixFileMgr {
+
+    private final String UNZIP_DIR = "zip";
 
     private SoHotfixContext mContext;
 
@@ -33,12 +35,12 @@ public class SoHotfixFileMgr {
     }
 
     public boolean unzipSo(File zipFile, int version) {
-        File dir = new File(SoHotfixUtil.getPath(mContext, version), "zip");
+        File dir = new File(SoHotfixUtil.getPath(mContext, version), UNZIP_DIR);
         return ZipUtil.unzipToDir(zipFile, dir);
     }
 
     public boolean patchSo(int version) {
-        File zipDir = new File(SoHotfixUtil.getPath(mContext, version), "zip");
+        File zipDir = new File(SoHotfixUtil.getPath(mContext, version), UNZIP_DIR);
         File[] files = zipDir.listFiles();
         if (files == null) {
             return false;
@@ -71,7 +73,7 @@ public class SoHotfixFileMgr {
     }
 
     public boolean checkMD5(int version) {
-        File zipDir = new File(SoHotfixUtil.getPath(mContext, version), "zip");
+        File zipDir = new File(SoHotfixUtil.getPath(mContext, version), UNZIP_DIR);
         File md5File = new File(zipDir, "md5.json");
         if (!md5File.isFile()) {
             return false;
@@ -100,6 +102,48 @@ public class SoHotfixFileMgr {
             return false;
         }
         return true;
+    }
+
+    public void cleanUpZip(int version) {
+        File zipDir = new File(SoHotfixUtil.getPath(mContext, version), UNZIP_DIR);
+        if (zipDir.exists()) {
+            FileUtil.deleteFile(zipDir);
+        }
+    }
+
+    public void cleanUpVersions(int excludeVersion, int excludeSuccessVersion) {
+        File hotfixRoot = new File(mContext.getHotfixRoot());
+        File hotfixRootParent = hotfixRoot.getParentFile();
+        if (hotfixRootParent == null) {
+            return;
+        }
+        File[] appVersions = hotfixRootParent.listFiles();
+        if (appVersions == null) {
+            return;
+        }
+        String hotfixRootName = mContext.getHotfixRootName();
+        for (File appVersion : appVersions) {
+            if (!hotfixRootName.equals(appVersion.getName())) {
+                FileUtil.deleteFile(appVersion);
+            }
+        }
+        File[] soVersions = hotfixRoot.listFiles();
+        if (soVersions == null) {
+            return;
+        }
+        for (File soVersionDir : soVersions) {
+            String soVersionName = soVersionDir.getName();
+            int soVersion = -2;
+            try {
+                soVersion = Integer.parseInt(soVersionName);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (soVersion == excludeVersion || soVersion == excludeSuccessVersion) {
+                continue;
+            }
+            FileUtil.deleteFile(soVersionDir);
+        }
     }
 
 }

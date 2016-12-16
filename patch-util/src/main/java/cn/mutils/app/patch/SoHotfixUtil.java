@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Created by wenhua.ywh on 2016/12/9.
  */
-public class SoHotfixUtil {
+class SoHotfixUtil {
 
     public static String getPath(SoHotfixContext context, int version) {
         return context.getHotfixRoot() + "/" + version;

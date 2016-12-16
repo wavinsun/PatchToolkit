@@ -6,7 +6,7 @@ import android.util.Log;
 /**
  * Created by wenhua.ywh on 2016/12/9.
  */
-public class KillAppThread extends Thread {
+class KillAppThread extends Thread {
 
     private SoHotfix mSoHotfix;
     private int mDelaySeconds;

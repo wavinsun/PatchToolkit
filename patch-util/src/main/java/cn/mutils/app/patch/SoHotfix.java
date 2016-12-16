@@ -21,7 +21,7 @@ public class SoHotfix {
     private int mKillDelaySec = 30; // 杀应用延时
     private boolean mKillAppOnHotfixOK = false; // 热修复成功时开始杀进程
     private volatile boolean mHotfixOK; // 是否热修复成功
-    private boolean mKillAppStarted; // 杀进程线程是否启动
+    private volatile boolean mKillAppStarted; // 杀进程线程是否启动
 
     private List<String> mLibraries = new CopyOnWriteArrayList<String>();
 
@@ -86,7 +86,7 @@ public class SoHotfix {
         }
     }
 
-    public void loadLibraries() {
+    public synchronized void loadLibraries() {
         if (!mFileMgr.isHotfixRootExists()) {
             for (String libName : mLibraries) {
                 System.loadLibrary(libName);
@@ -111,7 +111,9 @@ public class SoHotfix {
         mConf.setTransaction(true); // 准备加载，设置全局标识
         if (loadLibraries(soVersion)) {
             mConf.setTransaction(false); // 加载成功，重置全局标识
-            mConf.setSuccessVersion(soVersion);
+            if (soVersion > mConf.getSuccessVersion()) {
+                mConf.setSuccessVersion(soVersion);
+            }
         } else { // 加载出错
             mConf.onLoadError();
         }
@@ -140,11 +142,11 @@ public class SoHotfix {
         return success && hotfixCount != 0;
     }
 
-    public void hotfix(SoHotfixCallback callback, File zipFile, String sign, int version) {
+    public synchronized void hotfix(SoHotfixCallback callback, File zipFile, String sign, int version) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new RuntimeException("You can not call on main thread");
         }
-        if (mHotfixOK) {
+        if (mKillAppStarted) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_RESTART_APP);
             return;
         }
@@ -153,31 +155,31 @@ public class SoHotfix {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_UNKNOWN);
             return;
         } else {
-            mConf.setUpdateVersion(version);
+            if (version > mConf.getUpdateVersion()) {
+                mConf.setUpdateVersion(version);
+            }
         }
         if (!RsaUtil.verify(zipFile, sign, getPublicKey())) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_SIGN);
-            saveHotfixErrorVersion(version);
             return;
         }
         if (!mFileMgr.unzipSo(zipFile, version)) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_UNZIP);
-            saveHotfixErrorVersion(version);
             return;
         }
         if (!mFileMgr.patchSo(version)) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_PATCH);
-            saveHotfixErrorVersion(version);
             return;
         }
         if (!mFileMgr.checkMD5(version)) {
             callback.onHotfixCallback(SoHotfixCallback.ERROR_CHECK_MD5);
-            saveHotfixErrorVersion(version);
             return;
         }
         mHotfixOK = true;
         callback.onHotfixCallback(SoHotfixCallback.ERROR_OK);
         mConf.setVersion(version);
+        mFileMgr.cleanUpZip(version);
+        mFileMgr.cleanUpVersions(mConf.getVersion(), mConf.getSuccessVersion());
         if (mKillAppOnHotfixOK) {
             killApp();
         }
@@ -189,14 +191,7 @@ public class SoHotfix {
         }
         int update = mConf.getUpdateVersion();
         int current = mConf.getVersion();
-        int error = mConf.getErrorVersion();
-        return version <= update && ((current != -1 && version <= current) || (error != -1 && version <= error));
-    }
-
-    private void saveHotfixErrorVersion(int version) {
-        if (version > mConf.getErrorVersion()) {
-            mConf.setErrorVersion(version);
-        }
+        return (current != -1 && version <= update) && (current != -1 && version <= current);
     }
 
     private void killApp() {

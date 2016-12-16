@@ -6,13 +6,12 @@ import android.content.SharedPreferences;
 /**
  * Created by wenhua.ywh on 2016/12/8.
  */
-public class SoHotFixConf {
+class SoHotFixConf {
 
     private static final String PREF_FILE_NAME = "so_hotfix"; // 文件名
     private static final String PREF_KEY_TRANSACTION = "transaction"; // 加载SO全局标识
     private static final String PREF_KEY_VERSION = "version"; // 正在使用的版本
     private static final String PREF_KEY_VERSION_SUCCESS = "version_success"; // 上一次正确的版本
-    private static final String PREF_KEY_VERSION_ERROR = "version_error"; // 上一次错误版本
     private static final String PREF_KEY_VERSION_UPDATE = "version_update"; //  需要更新的版本
     private static final String PREF_KEY_VERSION_APP = "version_app";
 
@@ -20,7 +19,6 @@ public class SoHotFixConf {
     private boolean mTransaction = false;
     private int mVersion = -1;
     private int mSuccessVersion = -1;
-    private int mErrorVersion = -1;
     private int mUpdateVersion = -1;
     private String mAppVersion = "";
 
@@ -29,7 +27,6 @@ public class SoHotFixConf {
         mTransaction = mSharedPref.getBoolean(PREF_KEY_TRANSACTION, false);
         mVersion = mSharedPref.getInt(PREF_KEY_VERSION, -1);
         mSuccessVersion = mSharedPref.getInt(PREF_KEY_VERSION_SUCCESS, -1);
-        mErrorVersion = mSharedPref.getInt(PREF_KEY_VERSION_ERROR, -1);
         mUpdateVersion = mSharedPref.getInt(PREF_KEY_VERSION_UPDATE, -1);
         mAppVersion = mSharedPref.getString(PREF_KEY_VERSION_APP, "");
     }
@@ -62,14 +59,12 @@ public class SoHotFixConf {
         mTransaction = false;
         mVersion = -1;
         mSuccessVersion = -1;
-        mErrorVersion = -1;
         mUpdateVersion = -1;
         SharedPreferences.Editor editor = mSharedPref.edit();
         editor.putString(PREF_KEY_VERSION_APP, mAppVersion);
         editor.putBoolean(PREF_KEY_TRANSACTION, false);
         editor.putInt(PREF_KEY_VERSION, -1);
         editor.putInt(PREF_KEY_VERSION_SUCCESS, -1);
-        editor.putInt(PREF_KEY_VERSION_ERROR, -1);
         editor.putInt(PREF_KEY_VERSION_UPDATE, -1);
         editor.commit();
     }
@@ -116,20 +111,6 @@ public class SoHotFixConf {
         editor.commit();
     }
 
-    public int getErrorVersion() {
-        return mErrorVersion;
-    }
-
-    public synchronized void setErrorVersion(int errorVersion) {
-        if (mErrorVersion == errorVersion) {
-            return;
-        }
-        mErrorVersion = errorVersion;
-        SharedPreferences.Editor editor = mSharedPref.edit();
-        editor.putInt(PREF_KEY_VERSION_ERROR, mErrorVersion);
-        editor.commit();
-    }
-
     public int getUpdateVersion() {
         return mUpdateVersion;
     }
@@ -148,10 +129,6 @@ public class SoHotFixConf {
         mTransaction = false;
         SharedPreferences.Editor editor = mSharedPref.edit();
         editor.putBoolean(PREF_KEY_TRANSACTION, mTransaction);
-        if (mErrorVersion != -1 && mErrorVersion < mVersion) {
-            mErrorVersion = mVersion;
-            editor.putInt(PREF_KEY_VERSION_ERROR, mErrorVersion);
-        }
         if (mSuccessVersion != -1 && mSuccessVersion < mVersion) {
             mVersion = mSuccessVersion; // 回滚上一次成功的so
         } else {
