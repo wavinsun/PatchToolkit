@@ -1,1 +1,1 @@
-include ':app', ':patch-util', ':test-old', ':test-new'
+include ':app', ':app_sd_test', ':patch-util', ':test-old', ':test-new'

@@ -1,9 +1,6 @@
 package cn.mutils.app.patch.demo;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
 
 import cn.mutils.app.patch.SoHotfix;
 
@@ -18,9 +15,6 @@ public class MainSoHotfix extends SoHotfix {
     private MainSoHotfix(Context context) {
         super(context);
         this.setPublicKey(KEY_PUBLIC);
-        this.setKillDelaySec(5);
-        this.setKillAppOnHotfixOK(true);
-        this.addLibrary("Test");
     }
 
     public static MainSoHotfix getInstance() {
@@ -34,19 +28,4 @@ public class MainSoHotfix extends SoHotfix {
         return sInstance;
     }
 
-    @Override
-    protected boolean onInterceptKillApp() {
-        Context context = getSoContext().getContext();
-        Intent intent = new Intent();
-        intent.setAction(MainApplication.INTENT_ACTION_RESTART);
-        PendingIntent restartIntent = PendingIntent.getBroadcast(context, 0, intent, 0);
-        AlarmManager mgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 500, restartIntent);
-        return super.onInterceptKillApp();
-    }
-
-    @Override
-    public boolean isAppWorking() {
-        return super.isAppWorking();
-    }
 }

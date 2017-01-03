@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 public class SoHotfixContext {
 
     private static final String LIB_HOTFIX = "lib_hotfix";
+    private static final String LIB_HOTFIX_TEMP = "lib_hotfix$";
 
     private final Context mContext; // 系统上下文
     private final String mLibRoot; // 原始的so根路径
@@ -18,6 +19,7 @@ public class SoHotfixContext {
     private String mPackageVersion; // 版本
     private int mPackageVersionCode; // 版本名称
     private String mHotfixRootName; // 热更新so根路径名称
+    private final String mTempHotfixRoot; //  热更新so暂时根目录
 
     public SoHotfixContext(Context context) {
         mContext = context;
@@ -31,8 +33,9 @@ public class SoHotfixContext {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        mHotfixRootName = mPackageVersion + "_" + mPackageVersionCode;
-        mHotfixRoot = "/data/data/" + mPackageName + "/" + LIB_HOTFIX + "/" + mHotfixRootName;
+        mHotfixRootName = mPackageVersion + "." + mPackageVersionCode;
+        mHotfixRoot = "/data/data/" + mPackageName + "/files/" + LIB_HOTFIX + "/" + mHotfixRootName;
+        mTempHotfixRoot = "/data/data/" + mPackageName + "/files/" + LIB_HOTFIX_TEMP + "/" + mHotfixRootName;
     }
 
     public Context getContext() {
@@ -63,5 +66,7 @@ public class SoHotfixContext {
         return mPackageVersionCode;
     }
 
-
+    public String getTempHotfixRoot() {
+        return mTempHotfixRoot;
+    }
 }

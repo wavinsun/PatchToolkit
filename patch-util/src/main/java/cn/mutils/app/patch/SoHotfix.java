@@ -1,45 +1,51 @@
 package cn.mutils.app.patch;
 
 import android.content.Context;
+import android.os.Handler;
 import android.os.Looper;
 
 import cn.mutils.app.patch.util.RsaUtil;
 
 import java.io.File;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Created by wenhua.ywh on 2016/12/8.
  */
 public class SoHotfix {
 
+    public static final int ERROR_INVALID = -1; // 无效错误
+    public static final int ERROR_UNKNOWN = 0; // 未知错误
+    public static final int ERROR_OK = 1; // 成功
+    public static final int ERROR_TIMEOUT = 2; // 超时
+    public static final int ERROR_SIGN = 3; // 签名校验失败
+    public static final int ERROR_PATCH = 4; // 增量打包合并so失败
+    public static final int ERROR_UNZIP = 5; //  解压压缩包失败
+    public static final int ERROR_CHECK_MD5 = 6; // 校验MD5
+    public static final int ERROR_EXITS = 7; //  已存在更新
+    public static final int ERROR_DOWNLOAD = 8; // 下载出错
+    public static final int ERROR_NOT_WIFI = 9; // 非wifi网络
+
+    private static final int DURATION_OF_TRIAL = 180000; //  补丁试用期 3分钟运行正常设置补丁永久生效
+
     private SoHotfixContext mContext; // 上下文
     private SoHotfixFileMgr mFileMgr; // 文件管理
-    private SoHotFixConf mConf; // 配置
     private String mPublicKey; // 公钥
-    private int mKillDelaySec = 30; // 杀应用延时
-    private boolean mKillAppOnHotfixOK = false; // 热修复成功时开始杀进程
-    private volatile boolean mHotfixOK; // 是否热修复成功
-    private volatile boolean mKillAppStarted; // 杀进程线程是否启动
-
-    private List<String> mLibraries = new CopyOnWriteArrayList<String>();
+    private String mAppCrashFile; // 程序崩溃文件
+    private SoHotfixInjector mInjector; // 文件夹注入
+    private SoHotfixLibPath mInjectLibPath; // 插入的目录
 
     public SoHotfix(Context context) {
         mContext = new SoHotfixContext(context);
         mFileMgr = new SoHotfixFileMgr(mContext);
+        mInjector = new SoHotfixInjector(mContext);
     }
 
-    public boolean isHotfixOK() {
-        return mHotfixOK;
+    public String getAppCrashFile() {
+        return mAppCrashFile;
     }
 
-    public boolean isKillAppOnHotfixOK() {
-        return mKillAppOnHotfixOK;
-    }
-
-    public void setKillAppOnHotfixOK(boolean killAppOnHotfixOK) {
-        mKillAppOnHotfixOK = killAppOnHotfixOK;
+    public void setAppCrashFile(String appCrashFile) {
+        mAppCrashFile = appCrashFile;
     }
 
     public String getPublicKey() {
@@ -50,164 +56,104 @@ public class SoHotfix {
         mPublicKey = publicKey;
     }
 
-    public int getKillDelaySec() {
-        return mKillDelaySec;
-    }
-
-    public void setKillDelaySec(int restartDelaySec) {
-        mKillDelaySec = restartDelaySec;
-    }
-
-    private synchronized void tryToLoadConf() {
-        if (mConf != null) {
-            return;
-        }
-        mConf = new SoHotFixConf(mContext.getContext());
-    }
-
-    public synchronized void checkLoadConf() {
-        tryToLoadConf();
-        String appVersion = mContext.getPackageVersion();
-        if (!mConf.getAppVersion().equals(appVersion)) {
-            mConf.resetForAppVersion(appVersion);
-        }
-    }
-
     public SoHotfixContext getSoContext() {
         return mContext;
     }
 
-    public void addLibrary(String libName) {
-        if (libName == null || libName.isEmpty()) {
-            return;
+    private long getAppCrashTime() {
+        long appCrashTime = 0;
+        if (mAppCrashFile != null && mAppCrashFile.length() > 0) {
+            appCrashTime = new File(mAppCrashFile).lastModified();
         }
-        if (!mLibraries.contains(libName)) {
-            mLibraries.add(libName);
-        }
+        return appCrashTime;
     }
 
-    public synchronized void loadLibraries() {
-        if (!mFileMgr.isHotfixRootExists()) {
-            for (String libName : mLibraries) {
-                System.loadLibrary(libName);
-            }
+    public synchronized void injectHotfix() {
+        if (mInjectLibPath != null) {
             return;
         }
-        tryToLoadConf();
-        int soVersion = mConf.getVersion();
-        if (soVersion == -1) {
-            for (String libName : mLibraries) {
-                System.loadLibrary(libName);
-            }
+        final SoHotfixLibPath libPath = mFileMgr.getLibPathOfMaxVersion();
+        if (libPath == null) {
             return;
         }
-        if (mConf.isTransaction()) { // 上一次加载so崩溃
-            for (String libName : mLibraries) {
-                System.loadLibrary(libName);
-            }
-            mConf.onLoadError();
+        final int version = libPath.getVersion();
+        File crashTag = mFileMgr.getHotfixCrashTag(version);
+        if (crashTag != null) { // 补丁已经被标记试用期产生崩溃
             return;
         }
-        mConf.setTransaction(true); // 准备加载，设置全局标识
-        if (loadLibraries(soVersion)) {
-            mConf.setTransaction(false); // 加载成功，重置全局标识
-            if (soVersion > mConf.getSuccessVersion()) {
-                mConf.setSuccessVersion(soVersion);
-            }
-        } else { // 加载出错
-            mConf.onLoadError();
-        }
-    }
-
-    private boolean loadLibraries(int soVersion) {
-        if (soVersion == -1) {
-            return false;
-        }
-        boolean success = true;
-        int hotfixCount = 0;
-        for (String libName : mLibraries) {
-            File soFile = mFileMgr.getHotfixSo(libName, soVersion);
-            if (soFile == null) {
-                System.loadLibrary(libName);
-            } else {
-                hotfixCount++;
-                try {
-                    System.load(soFile.getPath());
-                } catch (Throwable e) {
-                    success = false;
-                    System.loadLibrary(libName);
+        final long time = System.currentTimeMillis();
+        File okTag = null;
+        File firstRunTag = mFileMgr.getHotfixFirstRunTag(version);
+        if (firstRunTag == null) { // 首次运行补丁
+            mFileMgr.setHotfixFirstRunTag(version, time);
+        } else {
+            okTag = mFileMgr.getHotfixOKTag(version);
+            if (okTag == null) {
+                long appCrashTime = getAppCrashTime();
+                if (appCrashTime > 0) { // 程序产生崩溃
+                    if (appCrashTime - firstRunTag.lastModified() < DURATION_OF_TRIAL) { // 补丁在试用期内产生崩溃
+                        mFileMgr.setHotfixCrashTag(version, time);
+                        return;
+                    }
                 }
             }
         }
-        return success && hotfixCount != 0;
+        mInjectLibPath = libPath;
+        mInjector.injectNativeLib(mInjectLibPath);
+        if (okTag != null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!SoHotfixUtil.isMainProcess(mContext.getContext())) {
+                    return;
+                }
+                File crashTag = mFileMgr.getHotfixCrashTag(version);
+                if (crashTag != null) { // 补丁已经产生崩溃
+                    return;
+                }
+                long appCrashTime = getAppCrashTime();
+                if (appCrashTime > 0) { // 程序产生崩溃
+                    if (appCrashTime - time < DURATION_OF_TRIAL) {
+                        return;
+                    }
+                }
+                mFileMgr.setHotfixOKTag(version, System.currentTimeMillis());
+            }
+        }, DURATION_OF_TRIAL);
     }
 
-    public synchronized void hotfix(SoHotfixCallback callback, File zipFile, String sign, int version) {
+    public synchronized void onLoadLibraryError() {
+        if (mInjectLibPath == null) {
+            return;
+        }
+        mFileMgr.setHotfixCrashTag(mInjectLibPath.getVersion(), System.currentTimeMillis());
+    }
+
+    public synchronized int hotfix(File zipFile, String sign, int version) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new RuntimeException("You can not call on main thread");
         }
-        if (mKillAppStarted) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_RESTART_APP);
-            return;
-        }
-        checkLoadConf();
-        if (isInvalidVersionForHotfix(version)) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_UNKNOWN);
-            return;
-        } else {
-            if (version > mConf.getUpdateVersion()) {
-                mConf.setUpdateVersion(version);
-            }
+        if (mFileMgr.isHotfixExists(version)) {
+            return ERROR_EXITS;
         }
         if (!RsaUtil.verify(zipFile, sign, getPublicKey())) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_SIGN);
-            return;
+            return ERROR_SIGN;
         }
         if (!mFileMgr.unzipSo(zipFile, version)) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_UNZIP);
-            return;
+            return ERROR_UNZIP;
         }
         if (!mFileMgr.patchSo(version)) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_PATCH);
-            return;
+            return ERROR_PATCH;
         }
         if (!mFileMgr.checkMD5(version)) {
-            callback.onHotfixCallback(SoHotfixCallback.ERROR_CHECK_MD5);
-            return;
+            return ERROR_CHECK_MD5;
         }
-        mHotfixOK = true;
-        callback.onHotfixCallback(SoHotfixCallback.ERROR_OK);
-        mConf.setVersion(version);
         mFileMgr.cleanUpZip(version);
-        mFileMgr.cleanUpVersions(mConf.getVersion(), mConf.getSuccessVersion());
-        if (mKillAppOnHotfixOK) {
-            killApp();
-        }
-    }
-
-    private boolean isInvalidVersionForHotfix(int version) {
-        if (mConf == null) {
-            return false;
-        }
-        int update = mConf.getUpdateVersion();
-        int current = mConf.getVersion();
-        return (current != -1 && version <= update) && (current != -1 && version <= current);
-    }
-
-    private void killApp() {
-        if (mKillAppStarted) {
-            return;
-        }
-        mKillAppStarted = true;
-        new KillAppThread(this, mKillDelaySec).start();
-    }
-
-    protected boolean onInterceptKillApp() {
-        return false;
-    }
-
-    public boolean isAppWorking() {
-        return false;
+        mFileMgr.cleanUpOldVersions();
+        mFileMgr.moveTempToLibPath(version);
+        return ERROR_OK;
     }
 
 }
