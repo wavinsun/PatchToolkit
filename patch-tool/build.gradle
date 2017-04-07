@@ -15,4 +15,5 @@ dependencies {
     compile 'com.alibaba:fastjson:1.2.21'
     compile 'commons-codec:commons-codec:1.10'
     compile 'io.sigpipe:jbsdiff:1.0'
+    compile 'commons-cli:commons-cli:1.2'
 }
