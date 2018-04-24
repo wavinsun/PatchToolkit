@@ -4,9 +4,9 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
-import cn.mutils.app.patch.util.RsaUtil;
-
 import java.io.File;
+
+import cn.mutils.app.patch.util.RsaUtil;
 
 /**
  * Created by wenhua.ywh on 2016/12/8.
@@ -68,6 +68,15 @@ public class SoHotfix {
         return appCrashTime;
     }
 
+    public String getHotfixPath() {
+        return mInjectLibPath != null ? mInjectLibPath.getPath() : null;
+    }
+
+    public String getHotfixBuildName() {
+        String path = getHotfixPath();
+        return path != null ? path.substring(path.lastIndexOf('/') + 1) : null;
+    }
+
     public synchronized void injectHotfix() {
         if (mInjectLibPath != null) {
             return;
@@ -98,8 +107,10 @@ public class SoHotfix {
                 }
             }
         }
+        if (!mInjector.injectNativeLib(libPath)) {
+            return;
+        }
         mInjectLibPath = libPath;
-        mInjector.injectNativeLib(mInjectLibPath);
         if (okTag != null) {
             return;
         }

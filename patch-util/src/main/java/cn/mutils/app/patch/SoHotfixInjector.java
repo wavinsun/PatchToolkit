@@ -55,17 +55,17 @@ public class SoHotfixInjector {
         }
     }
 
-    public void injectNativeLib(SoHotfixLibPath libraryDir) {
-        injectNativeLib(new SoHotfixLibPath[]{libraryDir});
+    public boolean injectNativeLib(SoHotfixLibPath libraryDir) {
+        return injectNativeLib(new SoHotfixLibPath[]{libraryDir});
     }
 
-    public void injectNativeLib(SoHotfixLibPath[] libraryDirs) {
+    public boolean injectNativeLib(SoHotfixLibPath[] libraryDirs) {
         if (libraryDirs == null) {
-            return;
+            return false;
         }
         int injectCount = libraryDirs.length;
         if (injectCount == 0) {
-            return;
+            return false;
         }
         if (mPathListLibsField == null) {
             init();
@@ -84,8 +84,10 @@ public class SoHotfixInjector {
             }
             mPathListLibsField.set(mPathListObj, newLibPathElements);
             Log.i(TAG, "inject native lib success");
+            return true;
         } catch (Exception e) {
             Log.e(TAG, "inject native lib failed", e);
+            return false;
         }
     }
 
